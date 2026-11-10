@@ -16,49 +16,59 @@ export async function exportarExcel({ gastos, categorias, metodos, perfiles, des
   // Hoja 1: detalle
   const ws = wb.addWorksheet('Gastos', { views: [{ state: 'frozen', ySplit: 3 }] })
   ws.columns = [
-    { key: 'fecha', width: 13 },
-    { key: 'categoria', width: 22 },
-    { key: 'proveedor', width: 24 },
-    { key: 'descripcion', width: 36 },
-    { key: 'metodo', width: 17 },
+    { key: 'fecha', width: 12 },
+    { key: 'concepto', width: 42 },
+    { key: 'categoria', width: 18 },
     { key: 'monto', width: 15 },
+    { key: 'comercio', width: 22 },
+    { key: 'metodo', width: 16 },
     { key: 'registro', width: 18 },
-    { key: 'factura', width: 9 },
+    { key: 'fechaRegistro', width: 19 },
+    { key: 'foto', width: 12 },
   ]
-  ws.mergeCells('A1:H1')
-  ws.getCell('A1').value = `Gastos Delú · ${fechaCorta(desde)} a ${fechaCorta(hasta)}`
+  ws.mergeCells('A1:I1')
+  ws.getCell('A1').value = `Gastos Delú, ${fechaCorta(desde)} a ${fechaCorta(hasta)}`
   ws.getCell('A1').font = { bold: true, size: 14, color: { argb: verde } }
   ws.getRow(1).height = 22
   const enc = ws.getRow(3)
-  enc.values = ['Fecha', 'Categoría', 'Proveedor', 'Descripción', 'Método de pago', 'Monto', 'Registrado por', 'Factura']
+  enc.values = ['Fecha', 'Concepto', 'Categoría', 'Monto', 'Comercio', 'Método de pago', 'Registrado por', 'Fecha de registro', 'Foto del comprobante']
   enc.eachCell((c) => {
     c.font = { bold: true, color: { argb: 'FFFFFFFF' } }
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: verde } }
-    c.alignment = { vertical: 'middle' }
+    c.alignment = { vertical: 'middle', wrapText: true }
   })
-  enc.height = 20
+  enc.height = 30
 
-  const orden = [...gastos].sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0))
+  // Fecha y hora de Bogotá como valor "plano" para que Excel la muestre igual
+  const bogota = (ts) => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(ts)).map((x) => [x.type, x.value]))
+    return new Date(Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute))
+  }
+
+  const orden = [...gastos].sort((a, b) => (a.fecha + a.creado_en < b.fecha + b.creado_en ? -1 : 1))
   orden.forEach((g) => {
     const r = ws.addRow({
       fecha: new Date(Date.UTC(...g.fecha.split('-').map((n, i) => Number(n) - (i === 1 ? 1 : 0)))),
+      concepto: g.descripcion || '',
       categoria: cat[g.categoria_id] || 'Sin categoría',
-      proveedor: g.proveedor || '',
-      descripcion: g.descripcion || '',
-      metodo: met[g.metodo_pago_id] || '',
       monto: Number(g.monto),
+      comercio: g.proveedor || '',
+      metodo: met[g.metodo_pago_id] || '',
       registro: per[g.creado_por] || '',
-      factura: g.factura_path ? 'Sí' : '',
+      fechaRegistro: g.creado_en ? bogota(g.creado_en) : '',
+      foto: g.factura_path ? 'Sí' : '',
     })
     r.getCell('fecha').numFmt = 'dd/mm/yyyy'
+    r.getCell('fechaRegistro').numFmt = 'dd/mm/yyyy hh:mm'
     r.getCell('monto').numFmt = fmtPesos
   })
   const primera = 4, ultima = 3 + orden.length
-  const tot = ws.addRow({ descripcion: 'Total', monto: orden.length ? { formula: `SUM(F${primera}:F${ultima})` } : 0 })
+  const tot = ws.addRow({ categoria: 'Total', monto: orden.length ? { formula: `SUM(D${primera}:D${ultima})` } : 0 })
   tot.font = { bold: true }
   tot.getCell('monto').numFmt = fmtPesos
-  tot.getCell('descripcion').alignment = { horizontal: 'right' }
-  if (orden.length) ws.autoFilter = { from: 'A3', to: `H${ultima}` }
+  tot.getCell('categoria').alignment = { horizontal: 'right' }
+  if (orden.length) ws.autoFilter = { from: 'A3', to: `I${ultima}` }
 
   // Hoja 2: resumen
   const rs = wb.addWorksheet('Resumen')

@@ -49,7 +49,7 @@ export default function Lista({ version, categorias, metodos, editar }) {
 
       <div className="buscador">
         <Icono n="buscar" tam={18} />
-        <input type="search" placeholder="Buscar proveedor, nota o monto" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+        <input type="search" placeholder="Buscar concepto, comercio o monto" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
       </div>
 
       <div className="rango-scroll">

@@ -132,5 +132,7 @@ insert into public.categorias (nombre, color, icono, orden) values
  ('Mercancía','#b07d62','💎',1), ('Arriendo','#6b7f99','🏠',2), ('Servicios','#5f9e8f','💡',3),
  ('Nómina','#9a6fb0','👥',4), ('Pauta / Publicidad','#d1795b','📣',5), ('Transporte y envíos','#c9a24a','🚚',6),
  ('Empaques','#7fa35a','🎁',7), ('Papelería y aseo','#8f8f8f','🧴',8), ('Impuestos','#a85a5a','🧾',9), ('Otros','#7a6a5f','•',10);
+-- Ajuste al formato del Excel anterior: Insumos y Transporte; Empaques y Papelería archivadas
+-- (ver historial de cambios del 10-nov-2026)
 insert into public.metodos_pago (nombre, orden) values
  ('Efectivo',1),('Transferencia',2),('Nequi',3),('Daviplata',4),('Tarjeta débito',5),('Tarjeta crédito',6);

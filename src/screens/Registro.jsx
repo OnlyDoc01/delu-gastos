@@ -111,27 +111,27 @@ export default function Registro({ gasto, cerrar, alGuardar, categorias, metodos
       ) : (
         <>
           <div className="registro-detalle">
+            <label className="campo"><span>Concepto</span>
+              <input value={f.descripcion} onChange={set('descripcion')} placeholder="Ej. Pago de arriendo del local" autoComplete="off" />
+            </label>
             <section className="grupo">
               <h3>Categoría</h3>
               <Chips opciones={activas} valor={f.categoria_id} cambiar={set('categoria_id')} />
             </section>
             <section className="grupo">
-              <h3>Método de pago</h3>
+              <h3>Método de pago (opcional)</h3>
               <Chips opciones={metodosAct} valor={f.metodo_pago_id} cambiar={set('metodo_pago_id')} />
             </section>
             <section className="grupo campos">
               <label className="campo"><span>Fecha</span>
                 <input type="date" value={f.fecha} max={hoy()} onChange={set('fecha')} required />
               </label>
-              <label className="campo"><span>Proveedor o a quién se pagó</span>
-                <input value={f.proveedor} onChange={set('proveedor')} placeholder="Ej. Bisutería El Dorado" autoComplete="off" />
-              </label>
-              <label className="campo"><span>Nota</span>
-                <textarea rows={2} value={f.descripcion} onChange={set('descripcion')} placeholder="Ej. 200 dijes de nácar" />
+              <label className="campo"><span>Comercio (opcional)</span>
+                <input value={f.proveedor} onChange={set('proveedor')} placeholder="Ej. Effisystems S.A.S" autoComplete="off" />
               </label>
             </section>
             <section className="grupo">
-              <h3>Factura o recibo</h3>
+              <h3>Foto del comprobante</h3>
               <input ref={inputFoto} type="file" accept="image/*,application/pdf" hidden onChange={elegirFoto} />
               {preview ? (
                 <div className="factura">
