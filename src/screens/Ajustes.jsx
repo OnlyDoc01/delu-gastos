@@ -4,7 +4,9 @@ import { Hoja, Icono } from '../ui'
 
 const COLORES = ['#B07D62', '#6B7F99', '#5F9E8F', '#9A6FB0', '#D1795B', '#C9A24A', '#7FA35A', '#8F8F8F', '#A85A5A', '#4E7FA8', '#C46F94', '#7A6A5F']
 
-export default function Ajustes({ perfil, esAdmin, categorias, metodos, recargarCatalogos, notificar }) {
+const URL_LECTOR = 'https://gcionnovhpskxaaugzmf.supabase.co/functions/v1/leer-comprobante'
+
+export default function Ajustes({ perfil, userId, esAdmin, categorias, metodos, recargarCatalogos, notificar }) {
   const [hoja, setHoja] = useState(null)
 
   return (
@@ -30,6 +32,7 @@ export default function Ajustes({ perfil, esAdmin, categorias, metodos, recargar
       )}
 
       <ul className="menu">
+        <li><button onClick={() => setHoja('atajo')}><span>Atajo para compartir comprobantes</span><span className="texto-suave">iPhone</span></button></li>
         <li><button onClick={() => setHoja('instalar')}><span>Instalar en el iPhone</span></button></li>
         <li><button onClick={() => supabase.auth.signOut()}><span className="rojo">Cerrar sesión</span></button></li>
       </ul>
@@ -37,6 +40,7 @@ export default function Ajustes({ perfil, esAdmin, categorias, metodos, recargar
       {hoja === 'cat' && <EditorCatalogo titulo="Categorías" tabla="categorias" campoActivo="activa" items={categorias} conColor recargar={recargarCatalogos} cerrar={() => setHoja(null)} notificar={notificar} />}
       {hoja === 'met' && <EditorCatalogo titulo="Métodos de pago" tabla="metodos_pago" campoActivo="activo" items={metodos} recargar={recargarCatalogos} cerrar={() => setHoja(null)} notificar={notificar} />}
       {hoja === 'usr' && <Usuarios cerrar={() => setHoja(null)} yo={perfil.id} notificar={notificar} />}
+      {hoja === 'atajo' && <Atajo cerrar={() => setHoja(null)} userId={userId} notificar={notificar} />}
       {hoja === 'instalar' && (
         <Hoja titulo="Instalar en el iPhone" cerrar={() => setHoja(null)}>
           <ol className="pasos">
@@ -49,6 +53,96 @@ export default function Ajustes({ perfil, esAdmin, categorias, metodos, recargar
         </Hoja>
       )}
     </div>
+  )
+}
+
+async function huella(texto) {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto))
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+const cuando = (ts) => new Date(ts).toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short' })
+
+function Atajo({ cerrar, userId, notificar }) {
+  const [estado, setEstado] = useState(undefined) // undefined: cargando, null: sin llave
+  const [nueva, setNueva] = useState('')
+  const [error, setError] = useState('')
+
+  const cargar = () => supabase.from('atajo_tokens').select('creado_en, ultimo_uso').eq('user_id', userId).maybeSingle()
+    .then(({ data, error }) => { setEstado(data || null); if (error) setError(error.message) })
+  useEffect(() => { cargar() }, []) // eslint-disable-line
+
+  async function copiar(texto, msg) {
+    try { await navigator.clipboard.writeText(texto); notificar(msg) } catch { notificar('No se pudo copiar. Mantén presionado el texto para copiarlo.') }
+  }
+
+  async function crear() {
+    setError('')
+    const bytes = crypto.getRandomValues(new Uint8Array(24))
+    const token = 'dg_' + [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+    const borrar = await supabase.from('atajo_tokens').delete().eq('user_id', userId)
+    if (borrar.error) return setError(borrar.error.message)
+    const { error } = await supabase.from('atajo_tokens').insert({ token_hash: await huella(token) })
+    if (error) return setError(error.message)
+    setNueva(token); cargar()
+  }
+
+  async function eliminar() {
+    if (!confirm('¿Eliminar la llave? El atajo dejará de funcionar hasta que crees otra.')) return
+    const { error } = await supabase.from('atajo_tokens').delete().eq('user_id', userId)
+    if (error) return setError(error.message)
+    setNueva(''); cargar(); notificar('Llave eliminada')
+  }
+
+  return (
+    <Hoja titulo="Atajo para comprobantes" cerrar={cerrar}>
+      <p className="texto-suave">Comparte el comprobante de una transferencia desde tu banco o Nequi y el gasto queda registrado como “Por revisar”. Tú lo confirmas en la app.</p>
+      {error && <p className="error">{error}</p>}
+
+      <section className="grupo">
+        <h3>1. Tu llave</h3>
+        {nueva && (
+          <div className="llave-nueva">
+            <p><strong>Copia esta llave ahora.</strong> No se vuelve a mostrar.</p>
+            <code className="codigo">{nueva}</code>
+            <button className="btn-secundario" onClick={() => copiar(nueva, 'Llave copiada')}>Copiar llave</button>
+          </div>
+        )}
+        {estado && !nueva && (
+          <p className="texto-suave">Llave activa desde {cuando(estado.creado_en)}. {estado.ultimo_uso ? `Último uso: ${cuando(estado.ultimo_uso)}.` : 'Aún no se ha usado.'}</p>
+        )}
+        <div className="acciones-fila">
+          <button className="btn-secundario" onClick={crear} disabled={estado === undefined}>{estado ? 'Crear llave nueva' : 'Crear llave'}</button>
+          {estado && <button className="btn-texto rojo" onClick={eliminar}>Eliminar llave</button>}
+        </div>
+        {estado && <p className="nota">Si creas una llave nueva, la anterior deja de funcionar y debes cambiarla en el atajo.</p>}
+      </section>
+
+      <section className="grupo">
+        <h3>2. Dirección del servicio</h3>
+        <code className="codigo">{URL_LECTOR}</code>
+        <button className="btn-secundario" onClick={() => copiar(URL_LECTOR, 'Dirección copiada')}>Copiar dirección</button>
+      </section>
+
+      <section className="grupo">
+        <h3>3. Crea el atajo (una sola vez)</h3>
+        <ol className="pasos">
+          <li>Abre la app <strong>Atajos</strong> de Apple, toca <strong>+</strong> y ponle de nombre <strong>Registrar en Delú</strong>.</li>
+          <li>Abre los detalles del atajo (ícono <strong>i</strong>), activa <strong>Mostrar en la hoja de compartir</strong> y en los tipos aceptados deja solo <strong>Imágenes</strong>.</li>
+          <li>Agrega <strong>Convertir imagen</strong> sobre la <strong>Entrada del atajo</strong> y elige <strong>JPEG</strong>.</li>
+          <li>Agrega <strong>Cambiar tamaño de imagen</strong> y pon ancho <strong>1600</strong>.</li>
+          <li>Agrega <strong>Obtener contenido de URL</strong>. Pega la dirección del paso 2, toca <strong>Mostrar más</strong> y configura: método <strong>POST</strong>; en encabezados agrega <strong>Authorization</strong> con el valor <strong>Bearer </strong> seguido de tu llave (con un espacio en medio); cuerpo de la solicitud <strong>Formulario</strong>, con un campo de tipo <strong>Archivo</strong> llamado <strong>imagen</strong> cuyo valor sea la imagen con tamaño cambiado.</li>
+          <li>Agrega <strong>Obtener valor del diccionario</strong> con la clave <strong>mensaje</strong>.</li>
+          <li>Agrega <strong>Mostrar notificación</strong> con ese valor.</li>
+        </ol>
+        <p className="nota">Los nombres de las acciones pueden variar un poco según tu versión de iOS.</p>
+      </section>
+
+      <section className="grupo">
+        <h3>4. Úsalo</h3>
+        <p className="texto-suave">En tu banco o Nequi abre el comprobante, toca <strong>Compartir</strong> y elige <strong>Registrar en Delú</strong>. Si no aparece en la lista, baja hasta <strong>Más</strong> y actívalo. Te llega una notificación con lo que se leyó, y en Resumen verás el aviso para revisarlo. También funciona con una captura de pantalla desde Fotos.</p>
+      </section>
+    </Hoja>
   )
 }
 

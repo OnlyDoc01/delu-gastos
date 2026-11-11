@@ -4,7 +4,7 @@ import { hoy, iso, nombreMes, parseISO, pesos, cap } from '../lib/format'
 import { Vacio } from '../ui'
 import FilaGasto from './FilaGasto'
 
-export default function Inicio({ version, categorias, metodos, editar, irA, perfil }) {
+export default function Inicio({ version, categorias, metodos, editar, irA, perfil, nRevisar, irARevisar }) {
   const h = parseISO(hoy())
   const [mes, setMes] = useState({ y: h.getFullYear(), m: h.getMonth() })
   const [actual, setActual] = useState(null)
@@ -52,6 +52,13 @@ export default function Inicio({ version, categorias, metodos, editar, irA, perf
         <span className="marca">delú</span>
         <span className="texto-suave">Hola, {perfil.nombre?.split(' ')[0]}</span>
       </header>
+
+      {nRevisar > 0 && (
+        <button className="banner-revisar" onClick={irARevisar}>
+          <span><strong>{nRevisar}</strong> {nRevisar === 1 ? 'gasto leído de un comprobante espera' : 'gastos leídos de comprobantes esperan'} tu revisión</span>
+          <span aria-hidden="true">›</span>
+        </button>
+      )}
 
       <section className="hero-mes">
         <div className="mes-nav">

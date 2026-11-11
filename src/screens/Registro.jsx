@@ -64,7 +64,7 @@ export default function Registro({ gasto, cerrar, alGuardar, categorias, metodos
     try {
       await guardarGasto({ ...gasto, ...f, monto: Number(monto) }, archivo, userId)
       if (f.metodo_pago_id) localStorageSet('ultimoMetodo', f.metodo_pago_id)
-      alGuardar(nuevo ? 'Gasto registrado' : 'Cambios guardados')
+      alGuardar(gasto.por_revisar ? 'Gasto confirmado' : nuevo ? 'Gasto registrado' : 'Cambios guardados')
     } catch (e) {
       setError('No se pudo guardar: ' + e.message + '. Revisa tu conexión e inténtalo otra vez.')
       setGuardando(false)
@@ -111,6 +111,9 @@ export default function Registro({ gasto, cerrar, alGuardar, categorias, metodos
       ) : (
         <>
           <div className="registro-detalle">
+            {gasto.por_revisar && (
+              <p className="aviso-revisar-form">Leído automáticamente del comprobante. Revisa el monto, la categoría y el concepto, y toca “Confirmar gasto”.</p>
+            )}
             <label className="campo"><span>Concepto</span>
               <input value={f.descripcion} onChange={set('descripcion')} placeholder="Ej. Pago de arriendo del local" autoComplete="off" />
             </label>
@@ -135,9 +138,9 @@ export default function Registro({ gasto, cerrar, alGuardar, categorias, metodos
               <input ref={inputFoto} type="file" accept="image/*,application/pdf" hidden onChange={elegirFoto} />
               {preview ? (
                 <div className="factura">
-                  {(archivo?.type || '').includes('pdf')
-                    ? <div className="factura-pdf">PDF adjunto</div>
-                    : <a href={preview} target="_blank" rel="noreferrer"><img src={preview} alt="Factura adjunta" /></a>}
+                  {(archivo?.type || '').includes('pdf') || (!archivo && /\.pdf$/i.test(gasto.factura_path || ''))
+                    ? <a className="factura-pdf" href={preview} target="_blank" rel="noreferrer">PDF adjunto, toca para abrirlo</a>
+                    : <a href={preview} target="_blank" rel="noreferrer"><img src={preview} alt="Foto del comprobante" /></a>}
                   <button className="btn-secundario" onClick={() => inputFoto.current.click()}>Cambiar foto</button>
                 </div>
               ) : (
@@ -153,7 +156,7 @@ export default function Registro({ gasto, cerrar, alGuardar, categorias, metodos
           <footer className="registro-pie">
             {error && <p className="error" role="alert">{error}</p>}
             <button className="btn-principal ancho" onClick={guardar} disabled={guardando || !puedeEditar}>
-              {guardando ? 'Guardando…' : nuevo ? 'Registrar gasto' : 'Guardar cambios'}
+              {guardando ? 'Guardando…' : gasto.por_revisar ? 'Confirmar gasto' : nuevo ? 'Registrar gasto' : 'Guardar cambios'}
             </button>
           </footer>
         </>

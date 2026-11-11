@@ -4,7 +4,7 @@ import { fechaLarga, pesos, rango, RANGOS, hoy } from '../lib/format'
 import { Chips, Icono, Vacio } from '../ui'
 import FilaGasto from './FilaGasto'
 
-export default function Lista({ version, categorias, metodos, editar }) {
+export default function Lista({ version, categorias, metodos, editar, nRevisar, revisarInicial }) {
   const [clave, setClave] = useState('mes')
   const [custom, setCustom] = useState(rango('mes'))
   const [categoria, setCategoria] = useState('')
@@ -13,17 +13,18 @@ export default function Lista({ version, categorias, metodos, editar }) {
   const [gastos, setGastos] = useState(null)
   const [error, setError] = useState('')
   const [filtros, setFiltros] = useState(false)
+  const [soloRevisar, setSoloRevisar] = useState(!!revisarInicial)
 
   const r = clave === 'custom' ? custom : rango(clave)
 
   useEffect(() => {
     let vivo = true
     setGastos(null)
-    cargarGastos({ ...r, categoria, metodo })
+    cargarGastos(soloRevisar ? { revisar: true } : { ...r, categoria, metodo })
       .then((d) => { if (vivo) { setGastos(d); setError('') } })
       .catch((e) => vivo && setError(e.message))
     return () => { vivo = false }
-  }, [r.desde, r.hasta, categoria, metodo, version]) // eslint-disable-line
+  }, [r.desde, r.hasta, categoria, metodo, version, soloRevisar]) // eslint-disable-line
 
   const filtrados = useMemo(() => {
     if (!gastos) return null
@@ -52,6 +53,18 @@ export default function Lista({ version, categorias, metodos, editar }) {
         <input type="search" placeholder="Buscar concepto, comercio o monto" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
       </div>
 
+      {soloRevisar ? (
+        <div className="aviso-revisar">
+          <p>Estos gastos se leyeron de un comprobante. Toca cada uno, revisa los datos y confirma.</p>
+          <button className="btn-texto" onClick={() => setSoloRevisar(false)}>Ver todos los gastos</button>
+        </div>
+      ) : (<>
+      {nRevisar > 0 && (
+        <button className="banner-revisar" onClick={() => setSoloRevisar(true)}>
+          <span><strong>{nRevisar}</strong> {nRevisar === 1 ? 'gasto espera' : 'gastos esperan'} tu revisión</span>
+          <span aria-hidden="true">›</span>
+        </button>
+      )}
       <div className="rango-scroll">
         <Chips opciones={RANGOS.map(([id, nombre]) => ({ id, nombre }))} valor={clave} cambiar={setClave} />
       </div>
@@ -73,6 +86,7 @@ export default function Lista({ version, categorias, metodos, editar }) {
           <Chips opciones={metodos} valor={metodo} cambiar={setMetodo} todos="Todos" />
         </div>
       )}
+      </>)}
 
       <div className="total-filtro">
         <span>{filtrados ? `${filtrados.length} ${filtrados.length === 1 ? 'gasto' : 'gastos'}` : 'Cargando…'}</span>

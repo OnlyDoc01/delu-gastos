@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import { cargarCatalogos } from './lib/data'
+import { cargarCatalogos, contarPorRevisar } from './lib/data'
 import Login from './screens/Login'
 import Inicio from './screens/Inicio'
 import Lista from './screens/Lista'
@@ -25,6 +25,8 @@ export default function App() {
   const [editando, setEditando] = useState(null) // null | {} nuevo | gasto
   const [version, setVersion] = useState(0)
   const [aviso, setAviso] = useState(null)
+  const [nRevisar, setNRevisar] = useState(0)
+  const [revisarInicial, setRevisarInicial] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSesion(data.session))
@@ -41,6 +43,11 @@ export default function App() {
 
   useEffect(() => { cargarPerfil() }, [cargarPerfil])
 
+  useEffect(() => {
+    if (!sesion || !perfil || perfil.rol === 'pendiente') { setNRevisar(0); return }
+    contarPorRevisar().then(setNRevisar).catch(() => {})
+  }, [sesion, perfil, version])
+
   useEffect(() => { if (tab !== 'nuevo') history.replaceState(null, '', '#' + tab) }, [tab])
 
   const notificar = useCallback((texto) => {
@@ -54,9 +61,12 @@ export default function App() {
   if (!perfil) return <div className="cargando-app"><span className="marca">delú</span></div>
   if (perfil.rol === 'pendiente') return <Pendiente perfil={perfil} reintentar={cargarPerfil} />
 
+  const ir = (id) => { setRevisarInicial(false); setTab(id) }
+  const irARevisar = () => { setRevisarInicial(true); setTab('lista') }
+
   const ctx = {
     perfil, userId: sesion.user.id, esAdmin: perfil.rol === 'admin',
-    ...cat, version, notificar,
+    ...cat, version, notificar, nRevisar, irARevisar,
     recargarCatalogos: async () => setCat(await cargarCatalogos()),
     editar: (g) => setEditando(g),
   }
@@ -64,8 +74,8 @@ export default function App() {
   return (
     <div className="app">
       <main className="contenido">
-        {tab === 'inicio' && <Inicio {...ctx} irA={setTab} />}
-        {tab === 'lista' && <Lista {...ctx} />}
+        {tab === 'inicio' && <Inicio {...ctx} irA={ir} />}
+        {tab === 'lista' && <Lista {...ctx} revisarInicial={revisarInicial} />}
         {tab === 'exportar' && <Exportar {...ctx} />}
         {tab === 'ajustes' && <Ajustes {...ctx} />}
       </main>
@@ -76,7 +86,7 @@ export default function App() {
             <Icono n="mas" />
           </button>
         ) : (
-          <button key={id} className={'barra-item' + (tab === id ? ' activo' : '')} onClick={() => setTab(id)} aria-current={tab === id ? 'page' : undefined}>
+          <button key={id} className={'barra-item' + (tab === id ? ' activo' : '')} onClick={() => ir(id)} aria-current={tab === id ? 'page' : undefined}>
             <Icono n={ic} />
             <span>{label}</span>
           </button>

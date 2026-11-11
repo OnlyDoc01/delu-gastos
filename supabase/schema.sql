@@ -136,3 +136,34 @@ insert into public.categorias (nombre, color, icono, orden) values
 -- (ver historial de cambios del 10-nov-2026)
 insert into public.metodos_pago (nombre, orden) values
  ('Efectivo',1),('Transferencia',2),('Nequi',3),('Daviplata',4),('Tarjeta débito',5),('Tarjeta crédito',6);
+
+-- ---------------------------------------------------------------------------
+-- Atajo de iPhone para comprobantes (migración "atajo_comprobantes", 11-nov-2026)
+-- ---------------------------------------------------------------------------
+alter table public.gastos add column por_revisar boolean not null default false;
+alter table public.gastos add column origen text not null default 'manual' check (origen in ('manual','atajo'));
+create index gastos_revisar_idx on public.gastos (por_revisar) where por_revisar;
+
+-- Llave personal del atajo (solo se guarda su huella SHA-256, nunca la llave)
+create table public.atajo_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  token_hash text not null unique,
+  creado_en timestamptz not null default now(),
+  ultimo_uso timestamptz
+);
+create index atajo_tokens_user_idx on public.atajo_tokens (user_id);
+alter table public.atajo_tokens enable row level security;
+create policy "ver mi llave" on public.atajo_tokens for select to authenticated using (user_id = (select auth.uid()));
+create policy "crear mi llave" on public.atajo_tokens for insert to authenticated
+  with check (user_id = (select auth.uid()) and (select public.es_miembro()));
+create policy "borrar mi llave" on public.atajo_tokens for delete to authenticated using (user_id = (select auth.uid()));
+
+-- Registro de lecturas para limitar a 40 por hora (solo lo toca el servicio)
+create table public.atajo_uso (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  creado_en timestamptz not null default now()
+);
+create index atajo_uso_idx on public.atajo_uso (user_id, creado_en desc);
+alter table public.atajo_uso enable row level security;

@@ -1,9 +1,9 @@
 import { supabase } from '../supabase'
 
-const SELECT = 'id, fecha, monto, proveedor, descripcion, factura_path, creado_por, creado_en, categoria_id, metodo_pago_id'
+const SELECT = 'id, fecha, monto, proveedor, descripcion, factura_path, creado_por, creado_en, categoria_id, metodo_pago_id, por_revisar'
 
 // Trae todos los gastos de un rango, paginando de 1000 en 1000
-export async function cargarGastos({ desde, hasta, categoria, metodo } = {}) {
+export async function cargarGastos({ desde, hasta, categoria, metodo, revisar } = {}) {
   const todos = []
   const paso = 1000
   for (let i = 0; ; i += paso) {
@@ -15,12 +15,20 @@ export async function cargarGastos({ desde, hasta, categoria, metodo } = {}) {
     if (hasta) q = q.lte('fecha', hasta)
     if (categoria) q = q.eq('categoria_id', categoria)
     if (metodo) q = q.eq('metodo_pago_id', metodo)
+    if (revisar) q = q.eq('por_revisar', true)
     const { data, error } = await q
     if (error) throw error
     todos.push(...data)
     if (data.length < paso) break
   }
   return todos
+}
+
+// Cuántos gastos leídos de comprobantes esperan revisión
+export async function contarPorRevisar() {
+  const { count, error } = await supabase.from('gastos').select('id', { count: 'exact', head: true }).eq('por_revisar', true)
+  if (error) throw error
+  return count || 0
 }
 
 export async function cargarCatalogos() {
@@ -51,6 +59,7 @@ export async function guardarGasto(gasto, archivo, userId) {
     proveedor: gasto.proveedor?.trim() || null,
     descripcion: gasto.descripcion?.trim() || null,
     factura_path,
+    por_revisar: false, // guardar desde la app confirma el gasto
   }
   const res = gasto.id
     ? await supabase.from('gastos').update(fila).eq('id', gasto.id).select(SELECT).single()

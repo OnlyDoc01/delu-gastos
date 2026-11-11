@@ -11,7 +11,7 @@ export default function FilaGasto({ g, categorias, metodos, onClick, conFecha })
         <span className="fg-ic" style={{ '--c': c?.color || '#999' }} aria-hidden="true">{c?.icono || '•'}</span>
         <span className="fg-txt">
           <span className="fg-t">{titulo}</span>
-          <span className="fg-s">{sub}{g.factura_path ? ' · con factura' : ''}</span>
+          <span className="fg-s">{g.por_revisar && <span className="pr">Por revisar</span>}{sub}{g.factura_path ? ', con foto' : ''}</span>
         </span>
         <span className="fg-monto">{pesos(g.monto)}</span>
       </button>
