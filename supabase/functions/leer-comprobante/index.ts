@@ -78,7 +78,11 @@ Deno.serve(async (req) => {
     if (!bytes || bytes.length === 0) return falla('No llegó ninguna imagen. Revisa que el atajo envíe el campo "imagen".', 400)
     if (bytes.length > MAX_BYTES) return falla('La imagen pesa demasiado. En el atajo reduce el tamaño a 1600 píxeles de ancho.', 413)
     const tipo = detectarTipo(bytes)
-    if (!tipo) return falla('Formato no compatible. En el atajo convierte la imagen a JPEG antes de enviarla.', 415)
+    if (!tipo) {
+      const cabecera = [...bytes.slice(0, 16)].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+      console.error('Formato no reconocido:', bytes.length, 'bytes; empieza con', cabecera, '; content-type', req.headers.get('content-type'))
+      return falla(`Formato no compatible (${bytes.length} bytes, empieza con ${cabecera}). En el atajo convierte la imagen a JPEG antes de enviarla.`, 415)
+    }
 
     // 4. Contexto: categorías, métodos y ejemplos de gastos anteriores
     const [cats, mets, hist] = await Promise.all([
