@@ -167,3 +167,7 @@ create table public.atajo_uso (
 );
 create index atajo_uso_idx on public.atajo_uso (user_id, creado_en desc);
 alter table public.atajo_uso enable row level security;
+
+-- Botón de cámara de la app (migración "origen_camara", 12-nov-2026)
+alter table public.gastos drop constraint if exists gastos_origen_check;
+alter table public.gastos add constraint gastos_origen_check check (origen in ('manual','atajo','camara'));

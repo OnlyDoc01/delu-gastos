@@ -54,14 +54,26 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return falla('Usa el método POST.', 405)
 
   try {
-    // 1. Quién llama: la llave personal del atajo
+    // 1. Quién llama: la llave personal del atajo (dg_...) o la sesión de la app (botón de cámara)
     const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
     if (!token) return falla('Falta la llave del atajo. Créala en la app: Ajustes, Atajo para comprobantes.', 401)
 
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
-    const { data: llave } = await db.from('atajo_tokens').select('id, user_id').eq('token_hash', await sha256(token)).maybeSingle()
-    if (!llave) return falla('La llave del atajo no es válida. Crea una nueva en la app: Ajustes, Atajo para comprobantes.', 401)
-    const uid: string = llave.user_id
+    let uid: string
+    let llaveId: string | null = null
+    let origen: 'atajo' | 'camara'
+    if (token.startsWith('dg_')) {
+      const { data: llave } = await db.from('atajo_tokens').select('id, user_id').eq('token_hash', await sha256(token)).maybeSingle()
+      if (!llave) return falla('La llave del atajo no es válida. Crea una nueva en la app: Ajustes, Atajo para comprobantes.', 401)
+      uid = llave.user_id
+      llaveId = llave.id
+      origen = 'atajo'
+    } else {
+      const { data, error } = await db.auth.getUser(token)
+      if (error || !data?.user) return falla('Tu sesión venció. Cierra sesión en la app y vuelve a entrar.', 401)
+      uid = data.user.id
+      origen = 'camara'
+    }
 
     const { data: perfil } = await db.from('perfiles').select('rol').eq('id', uid).maybeSingle()
     if (!perfil || !['admin', 'registrador'].includes(perfil.rol)) return falla('Tu cuenta aún no tiene acceso. Pídele al administrador que la apruebe.', 403)
@@ -71,7 +83,7 @@ Deno.serve(async (req) => {
     const { count } = await db.from('atajo_uso').select('id', { count: 'exact', head: true }).eq('user_id', uid).gte('creado_en', desde)
     if ((count ?? 0) >= LIMITE_POR_HORA) return falla('Hiciste muchas lecturas seguidas. Espera un rato e inténtalo de nuevo.', 429)
     await db.from('atajo_uso').insert({ user_id: uid })
-    await db.from('atajo_tokens').update({ ultimo_uso: new Date().toISOString() }).eq('id', llave.id)
+    if (llaveId) await db.from('atajo_tokens').update({ ultimo_uso: new Date().toISOString() }).eq('id', llaveId)
 
     // 3. El archivo
     const bytes = await leerArchivo(req)
@@ -152,7 +164,7 @@ Deno.serve(async (req) => {
       factura_path: subida.error ? null : ruta,
       creado_por: uid,
       por_revisar: true,
-      origen: 'atajo',
+      origen,
     }).select('id').single()
     if (error) {
       console.error('Insert', error.message)

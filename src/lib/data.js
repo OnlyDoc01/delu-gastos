@@ -80,12 +80,11 @@ export async function urlFactura(path) {
   return data.signedUrl
 }
 
-// Reduce una foto a máx. 1600px para que suba rápido
-export async function comprimirImagen(file) {
+// Reduce una foto a máx. 1600px (o `max`) para que suba rápido
+export async function comprimirImagen(file, max = 1600) {
   if (!file.type.startsWith('image/')) return file
   try {
     const bmp = await createImageBitmap(file)
-    const max = 1600
     const s = Math.min(1, max / Math.max(bmp.width, bmp.height))
     const c = document.createElement('canvas')
     c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s)
@@ -94,5 +93,29 @@ export async function comprimirImagen(file) {
     return blob ? new File([blob], 'factura.jpg', { type: 'image/jpeg' }) : file
   } catch {
     return file
+  }
+}
+
+export async function cargarGasto(id) {
+  const { data, error } = await supabase.from('gastos').select(SELECT).eq('id', id).single()
+  if (error) throw error
+  return data
+}
+
+export const URL_LECTOR = 'https://gcionnovhpskxaaugzmf.supabase.co/functions/v1/leer-comprobante'
+
+// Envía la foto al lector. Devuelve { ok, mensaje, id, gasto, duplicado } (nunca lanza por errores del servicio)
+export async function leerRecibo(archivo) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { ok: false, mensaje: 'Tu sesión venció. Cierra sesión y vuelve a entrar.' }
+  const fd = new FormData()
+  fd.append('imagen', archivo, 'recibo.jpg')
+  try {
+    const r = await fetch(URL_LECTOR, { method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token }, body: fd })
+    const j = await r.json().catch(() => null)
+    if (j && typeof j.ok === 'boolean') return j
+    return { ok: false, mensaje: 'No pude leer el recibo. Inténtalo de nuevo.' }
+  } catch {
+    return { ok: false, mensaje: 'No hay conexión. Revisa tu internet e inténtalo de nuevo.' }
   }
 }

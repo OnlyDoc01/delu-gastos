@@ -5,7 +5,7 @@ import { Chips, Icono } from '../ui'
 
 const TECLAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0', 'borrar']
 
-export default function Registro({ gasto, cerrar, alGuardar, categorias, metodos, userId, esAdmin }) {
+export default function Registro({ gasto, archivoInicial, cerrar, alGuardar, categorias, metodos, userId, esAdmin }) {
   const nuevo = !gasto.id
   const [monto, setMonto] = useState(gasto.monto ? String(Math.round(gasto.monto)) : '')
   const [f, setF] = useState({
@@ -15,7 +15,7 @@ export default function Registro({ gasto, cerrar, alGuardar, categorias, metodos
     proveedor: gasto.proveedor || '',
     descripcion: gasto.descripcion || '',
   })
-  const [archivo, setArchivo] = useState(null)
+  const [archivo, setArchivo] = useState(archivoInicial || null)
   const [preview, setPreview] = useState(null)
   const [paso, setPaso] = useState(nuevo ? 'monto' : 'detalle')
   const [guardando, setGuardando] = useState(false)

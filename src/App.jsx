@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
-import { cargarCatalogos, contarPorRevisar } from './lib/data'
+import { cargarCatalogos, cargarGasto, comprimirImagen, contarPorRevisar, leerRecibo } from './lib/data'
 import Login from './screens/Login'
 import Inicio from './screens/Inicio'
 import Lista from './screens/Lista'
 import Registro from './screens/Registro'
 import Exportar from './screens/Exportar'
 import Ajustes from './screens/Ajustes'
-import { Icono } from './ui'
+import { Hoja, Icono } from './ui'
+import { pesos } from './lib/format'
 
 const TABS = [
   ['inicio', 'Resumen', 'inicio'],
@@ -27,6 +28,9 @@ export default function App() {
   const [aviso, setAviso] = useState(null)
   const [nRevisar, setNRevisar] = useState(0)
   const [revisarInicial, setRevisarInicial] = useState(false)
+  const [leyendo, setLeyendo] = useState(false)
+  const [lectura, setLectura] = useState(null) // { ok, gasto, mensaje, archivo }
+  const inputCamara = useRef()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSesion(data.session))
@@ -61,6 +65,25 @@ export default function App() {
   if (!perfil) return <div className="cargando-app"><span className="marca">delú</span></div>
   if (perfil.rol === 'pendiente') return <Pendiente perfil={perfil} reintentar={cargarPerfil} />
 
+  const tomarFoto = async (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setLeyendo(true)
+    const img = await comprimirImagen(f, 2000)
+    const r = await leerRecibo(img)
+    setLeyendo(false)
+    if (r.ok && r.duplicado) { notificar('Ya estaba registrado'); return }
+    if (r.ok) setVersion((v) => v + 1)
+    setLectura({ ...r, archivo: img })
+  }
+  const revisarLectura = async () => {
+    const l = lectura
+    setLectura(null)
+    try { setEditando(await cargarGasto(l.id)) } catch { notificar('No pude abrir el gasto') }
+  }
+  const aMano = () => { const a = lectura.archivo; setLectura(null); setEditando({ __archivo: a }) }
+
   const ir = (id) => { setRevisarInicial(false); setTab(id) }
   const irARevisar = () => { setRevisarInicial(true); setTab('lista') }
 
@@ -80,6 +103,13 @@ export default function App() {
         {tab === 'ajustes' && <Ajustes {...ctx} />}
       </main>
 
+      {!editando && (tab === 'inicio' || tab === 'lista') && (
+        <button className="fab-camara" onClick={() => inputCamara.current.click()} aria-label="Fotografiar un recibo" disabled={leyendo}>
+          <Icono n="camara" />
+        </button>
+      )}
+      <input ref={inputCamara} type="file" accept="image/*" capture="environment" hidden onChange={tomarFoto} />
+
       <nav className="barra" aria-label="Secciones">
         {TABS.map(([id, label, ic]) => id === 'nuevo' ? (
           <button key={id} className="barra-nuevo" onClick={() => setEditando({})} aria-label="Registrar gasto">
@@ -96,10 +126,29 @@ export default function App() {
       {editando && (
         <Registro
           {...ctx}
-          gasto={editando}
+          gasto={editando.__archivo ? {} : editando}
+          archivoInicial={editando.__archivo}
           cerrar={() => setEditando(null)}
           alGuardar={(msg) => { setEditando(null); setVersion((v) => v + 1); notificar(msg) }}
         />
+      )}
+      {leyendo && (
+        <div className="leyendo" role="status"><div className="leyendo-caja"><span className="spinner" /><b>Leyendo el recibo…</b><small>Tarda unos segundos</small></div></div>
+      )}
+      {lectura && lectura.ok && (
+        <Hoja titulo="Recibo registrado" cerrar={() => setLectura(null)}
+          pie={<div className="acciones-fila"><button className="btn-secundario" onClick={() => setLectura(null)}>Listo</button><button className="btn-principal" onClick={revisarLectura}>Revisar y editar</button></div>}>
+          <div className="lectura-monto">{pesos(lectura.gasto.monto)}</div>
+          <div className="lectura-detalle"><b>{lectura.gasto.concepto}</b><span>{[lectura.gasto.categoria, lectura.gasto.metodo, lectura.gasto.comercio].filter(Boolean).join(' · ')}</span></div>
+          <p className="texto-suave">Quedó guardado como “Por revisar”. Confírmalo cuando verifiques que está bien.</p>
+        </Hoja>
+      )}
+      {lectura && !lectura.ok && (
+        <Hoja titulo="No pude leer el recibo" cerrar={() => setLectura(null)}
+          pie={<div className="acciones-fila"><button className="btn-secundario" onClick={() => setLectura(null)}>Cerrar</button><button className="btn-principal" onClick={aMano}>Registrar a mano</button></div>}>
+          <p>{lectura.mensaje}</p>
+          <p className="texto-suave">Puedes registrarlo a mano y la foto queda adjunta.</p>
+        </Hoja>
       )}
       {aviso && <div className="aviso" role="status">{aviso}</div>}
     </div>
